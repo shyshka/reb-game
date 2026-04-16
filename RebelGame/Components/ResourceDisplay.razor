@@ -1,0 +1,50 @@
+@inject GameService GameService
+@implements IDisposable
+
+<div class="resource-bar">
+    <div class="resource">
+        <span class="resource-icon">💰</span>
+        <div class="resource-details">
+            <span class="resource-value">@Format(GameService.State.Money)</span>
+            <span class="resource-rate">+@FormatRate(GameService.GetMoneyRate())/s</span>
+        </div>
+    </div>
+    <div class="resource">
+        <span class="resource-icon">⚡</span>
+        <div class="resource-details">
+            <span class="resource-value">@Format(GameService.State.Energy)</span>
+            <span class="resource-rate">+@FormatRate(GameService.GetEnergyRate())/s</span>
+        </div>
+    </div>
+    <div class="resource">
+        <span class="resource-icon">👷</span>
+        <div class="resource-details">
+            <span class="resource-value">@GameService.State.Workers.Count</span>
+            <span class="resource-rate">workers</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized() =>
+        GameService.OnStateChanged += HandleStateChanged;
+
+    private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() =>
+        GameService.OnStateChanged -= HandleStateChanged;
+
+    private static string Format(double value) => value switch
+    {
+        >= 1_000_000_000 => $"{value / 1_000_000_000:F1}B",
+        >= 1_000_000 => $"{value / 1_000_000:F1}M",
+        >= 1_000 => $"{value / 1_000:F1}K",
+        _ => $"{value:F1}"
+    };
+
+    private static string FormatRate(double rate) => rate switch
+    {
+        >= 1_000 => $"{rate / 1_000:F1}K",
+        _ => $"{rate:F2}"
+    };
+}

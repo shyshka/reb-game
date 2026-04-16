@@ -1,0 +1,32 @@
+@page "/"
+
+<PageTitle>RebelGame</PageTitle>
+
+<div class="game-board">
+    <GameMap SelectedBuildingId="@_selectedBuildingId"
+             SellMode="@_sellMode"
+             OnPlaced="HandlePlaced" />
+    <BottomBar SelectedBuildingId="@_selectedBuildingId"
+               SellMode="@_sellMode"
+               OnBuildingSelect="HandleBuildingSelect"
+               OnSellModeToggle="HandleSellModeToggle" />
+</div>
+
+@code {
+    private string? _selectedBuildingId;
+    private bool _sellMode;
+
+    private void HandleBuildingSelect(string? buildingId)
+    {
+        _selectedBuildingId = buildingId;
+        if (buildingId != null) _sellMode = false;
+    }
+
+    private void HandlePlaced() => _selectedBuildingId = null;
+
+    private void HandleSellModeToggle()
+    {
+        _sellMode = !_sellMode;
+        if (_sellMode) _selectedBuildingId = null;
+    }
+}

@@ -1,0 +1,35 @@
+.game-layout {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #0d1117;
+    color: #e0e0e0;
+}
+
+.game-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: #1a1a2e;
+    border-bottom: 2px solid #f0a500;
+}
+
+.game-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f0a500;
+    padding: 0.5rem 1rem;
+    white-space: nowrap;
+    border-right: 1px solid #2a2a4a;
+}
+
+.game-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.8rem;
+}
+

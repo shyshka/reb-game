@@ -1,0 +1,20 @@
+@inherits LayoutComponentBase
+@inject GameService GameService
+
+<div class="game-layout">
+    <header class="game-header">
+        <span class="game-title">⚡ RebelGame</span>
+        <ResourceDisplay />
+    </header>
+    <main class="game-content">
+        @Body
+    </main>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await GameService.InitializeAsync();
+    }
+}

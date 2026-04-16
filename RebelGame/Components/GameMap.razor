@@ -1,0 +1,429 @@
+@inject GameService GameService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="map-viewport @(SelectedBuildingId != null ? "map-viewport--placement" : "") @(SellMode ? "map-viewport--sell" : "")"
+     @ref="_vpRef"
+     @onmousedown="HandleMouseDown"
+     @onmousemove="HandleMouseMove"
+     @onmouseup="HandleMouseUp"
+     @onmouseleave="HandleMouseLeave"
+     @onwheel="HandleWheel"
+     @onwheel:preventDefault="true"
+     @onclick="HandleViewportClick"
+     @ontouchstart="HandleTouchStart"
+     @ontouchmove="HandleTouchMove"
+     @ontouchend="HandleTouchEnd"
+     @ontouchmove:preventDefault="true">
+
+    <div class="map-world"
+         style="transform: translate(@F(_panX)px, @F(_panY)px) scale(@Z(_zoom)); transform-origin: 0 0;">
+
+        <!-- Terrain decorations -->
+        @foreach (var d in _decorations)
+        {
+            <div class="terrain-deco" style="left:@F(d.X)px;top:@F(d.Y)px;">
+                @((MarkupString)DecoSvg(d.Kind))
+            </div>
+        }
+
+        <!-- Workers -->
+        @foreach (var w in GameService.State.Workers)
+        {
+            var flip = w.FacingLeft ? "scaleX(-1)" : "scaleX(1)";
+            <div class="worker-wrap" style="left:@F(w.X - 12)px;top:@F(w.Y - 20)px;">
+                <div class="worker-unit" style="transform:@flip">
+                    @((MarkupString)WorkerSvgStr)
+                </div>
+            </div>
+        }
+
+        <!-- Placed buildings -->
+        @foreach (var b in GameService.State.Map)
+        {
+            var def = BuildingCatalog.GetById(b.BuildingId);
+            var half = GameConfig.BuildingSize / 2;
+            var sellPrice = SellMode ? GameService.GetSellPrice(b.BuildingId) : 0;
+            var isSelected = _infoBuilding?.Id == b.Id;
+            <div class="world-building @(SellMode ? "world-building--sell" : "") @(isSelected ? "world-building--selected" : "")"
+                 style="left:@F(b.X - half)px;top:@F(b.Y - half)px;"
+                 @onclick:stopPropagation="true"
+                 @onclick="() => HandleBuildingClick(b)">
+                <BuildingVisual BuildingId="@b.BuildingId" />
+                @if (SellMode)
+                {
+                    <div class="sell-overlay">💰 @Fmt(sellPrice)</div>
+                }
+                else
+                {
+                    <span class="bld-label">@def?.Name</span>
+                }
+            </div>
+        }
+
+        <!-- Ghost preview -->
+        @if (SelectedBuildingId != null && _showGhost)
+        {
+            var half = GameConfig.BuildingSize / 2;
+            <div class="world-building world-building--ghost"
+                 style="left:@F(_ghostWX - half)px;top:@F(_ghostWY - half)px;pointer-events:none;">
+                <BuildingVisual BuildingId="@SelectedBuildingId" />
+            </div>
+        }
+    </div>
+
+    <!-- Building info panel — fixed position so overflow:hidden doesn't clip it -->
+    @if (_infoBuilding != null && !SellMode)
+    {
+        var ib  = _infoBuilding;
+        var def = BuildingCatalog.GetById(ib.BuildingId);
+        var px  = (int)(_vpL + ib.X * _zoom + _panX);
+        var py  = (int)(_vpT + ib.Y * _zoom + _panY - GameConfig.BuildingSize * _zoom / 2) - 6;
+        var workerCount = GameService.State.Workers.Count(w => w.HomeId == ib.Id);
+        var canHire = GameService.State.Money >= GameConfig.WorkerCost;
+        <div class="building-info-panel" style="left:@(px)px;top:@(py)px;"
+             @onmousedown:stopPropagation @onclick:stopPropagation>
+            <button class="info-close" @onclick="() => _infoBuilding = null">✕</button>
+            <div class="info-name">@def?.Icon @def?.Name</div>
+            <div class="info-desc">@def?.Description</div>
+            @if (ib.BuildingId == "hunter_lodge")
+            {
+                <div class="info-stat">👷 Workers: @workerCount</div>
+                <button class="btn-hire @(canHire ? "" : "btn-hire--locked")"
+                        disabled="@(!canHire)"
+                        @onclick="() => GameService.CreateWorker(ib.Id)">
+                    👤 Hire Worker &nbsp;💰 @((int)GameConfig.WorkerCost)
+                </button>
+            }
+        </div>
+    }
+
+    <!-- Bottom-right corner: minimap + zoom roller -->
+    <div class="corner-controls" @onclick:stopPropagation>
+
+        <!-- Minimap -->
+        <div class="minimap" title="Drag to navigate"
+             @onmousedown="HandleMinimapMouseDown"
+             @onmousedown:stopPropagation>
+            @foreach (var b in GameService.State.Map)
+            {
+                var def = BuildingCatalog.GetById(b.BuildingId);
+                var dotColor = def?.Id switch {
+                    "solar_station" => "#f0c030",
+                    "wind_farm"     => "#60c0f0",
+                    "hunter_lodge"  => "#c07830",
+                    _               => "#e06030"
+                };
+                <div class="mm-dot" style="left:@F(b.X*MmSX)px;top:@F(b.Y*MmSY)px;background:@dotColor;"></div>
+            }
+            @foreach (var w in GameService.State.Workers)
+            {
+                <div class="mm-dot mm-dot--worker" style="left:@F(w.X*MmSX)px;top:@F(w.Y*MmSY)px;"></div>
+            }
+            <div class="mm-viewport" style="@MinimapViewportStyle()"></div>
+        </div>
+
+        <!-- Zoom control -->
+        <div class="zoom-control">
+            <button class="zoom-btn" title="Zoom in"  @onclick="ZoomIn">＋</button>
+            <input class="zoom-slider" type="range"
+                   min="@GameConfig.MinZoom" max="@GameConfig.MaxZoom" step="0.05"
+                   value="@_zoom"
+                   @oninput="HandleZoomSlider" />
+            <button class="zoom-btn" title="Zoom out" @onclick="ZoomOut">－</button>
+            <span class="zoom-label">@((int)Math.Round(_zoom * 100))%</span>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? SelectedBuildingId { get; set; }
+    [Parameter] public bool SellMode { get; set; }
+    [Parameter] public EventCallback OnPlaced { get; set; }
+
+    private ElementReference _vpRef;
+    private double _vpL, _vpT, _vpW, _vpH;
+
+    private double _panX, _panY;
+    private double _zoom = 1.0;
+
+    // drag state
+    private bool _dragging;
+    private double _downCX, _downCY, _pan0X, _pan0Y, _dragDist;
+
+    // ghost
+    private bool _showGhost;
+    private double _ghostWX, _ghostWY;
+
+    // building info panel
+    private PlacedBuilding? _infoBuilding;
+
+    // terrain decorations (fixed seed)
+    private static readonly (double X, double Y, int Kind)[] _decorations = MakeDecorations();
+
+    // ── lifecycle ──────────────────────────────────────────────────────────
+
+    protected override void OnInitialized() =>
+        GameService.OnStateChanged += Refresh;
+
+    protected override void OnParametersSet()
+    {
+        if (SelectedBuildingId == null) _showGhost = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var r = await JS.InvokeAsync<double[]>("mapHelpers.getRect", _vpRef);
+        _vpL = r[0]; _vpT = r[1]; _vpW = r[2]; _vpH = r[3];
+        _panX = _vpW / 2 - GameConfig.MapWidth  / 2.0;
+        _panY = _vpH / 2 - GameConfig.MapHeight / 2.0;
+        ClampPan();
+        await JS.InvokeVoidAsync("mapHelpers.noPassiveWheel", _vpRef);
+        StateHasChanged();
+    }
+
+    private void Refresh() => InvokeAsync(StateHasChanged);
+
+    // ── mouse ──────────────────────────────────────────────────────────────
+
+    private void HandleMouseDown(MouseEventArgs e)
+    {
+        _dragging = true;
+        _downCX = e.ClientX; _downCY = e.ClientY;
+        _pan0X = _panX;      _pan0Y = _panY;
+        _dragDist = 0;
+    }
+
+    private void HandleViewportClick(MouseEventArgs e)
+    {
+        // fires only on empty-space clicks (building clicks have @onclick:stopPropagation)
+        _infoBuilding = null;
+    }
+
+    private void HandleMouseMove(MouseEventArgs e)
+    {
+        if (_mmDragging)
+        {
+            var dx = e.ClientX - _mmDragStartCX;
+            var dy = e.ClientY - _mmDragStartCY;
+            PanToMinimap(_mmDragStartMmX + dx, _mmDragStartMmY + dy);
+            return;
+        }
+        if (_dragging)
+        {
+            var dx = e.ClientX - _downCX;
+            var dy = e.ClientY - _downCY;
+            _dragDist = Math.Sqrt(dx * dx + dy * dy);
+            _panX = _pan0X + dx;
+            _panY = _pan0Y + dy;
+            ClampPan();
+        }
+        if (SelectedBuildingId != null)
+        {
+            (_ghostWX, _ghostWY) = ToWorld(e.ClientX - _vpL, e.ClientY - _vpT);
+            _showGhost = true;
+        }
+    }
+
+    private void HandleMouseUp(MouseEventArgs e)
+    {
+        if (_mmDragging) { _mmDragging = false; return; }
+        if (!_dragging) return;
+        var click = _dragDist < 5;
+        _dragging = false;
+
+        if (!click || SelectedBuildingId == null) return;
+        var (wx, wy) = ToWorld(e.ClientX - _vpL, e.ClientY - _vpT);
+        if (GameService.PlaceBuilding(SelectedBuildingId, wx, wy))
+            OnPlaced.InvokeAsync();
+    }
+
+    private void HandleMouseLeave(MouseEventArgs e)
+    {
+        _mmDragging = false;
+        _dragging   = false;
+        _showGhost  = false;
+    }
+
+    private void HandleWheel(WheelEventArgs e)
+    {
+        var factor = e.DeltaY > 0 ? 0.9 : 1.1;
+        var nz = Math.Clamp(_zoom * factor, GameConfig.MinZoom, GameConfig.MaxZoom);
+        var vx = e.ClientX - _vpL;
+        var vy = e.ClientY - _vpT;
+        _panX = vx - (vx - _panX) * (nz / _zoom);
+        _panY = vy - (vy - _panY) * (nz / _zoom);
+        _zoom = nz;
+        ClampPan();
+    }
+
+    // ── zoom control ───────────────────────────────────────────────────────
+
+    private void ApplyZoom(double newZoom)
+    {
+        var nz = Math.Clamp(newZoom, GameConfig.MinZoom, GameConfig.MaxZoom);
+        var cx = _vpW / 2; var cy = _vpH / 2;
+        _panX = cx - (cx - _panX) * (nz / _zoom);
+        _panY = cy - (cy - _panY) * (nz / _zoom);
+        _zoom = nz;
+        ClampPan();
+    }
+
+    private void ZoomIn()  => ApplyZoom(_zoom * 1.2);
+    private void ZoomOut() => ApplyZoom(_zoom / 1.2);
+
+    private void HandleZoomSlider(ChangeEventArgs e)
+    {
+        if (double.TryParse(e.Value?.ToString(),
+            System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v))
+            ApplyZoom(v);
+    }
+
+    // ── touch (basic pan) ──────────────────────────────────────────────────
+
+    private void HandleTouchStart(TouchEventArgs e)
+    {
+        if (e.Touches.Length != 1) return;
+        var t = e.Touches[0];
+        _dragging = true;
+        _downCX = t.ClientX; _downCY = t.ClientY;
+        _pan0X = _panX;      _pan0Y = _panY;
+        _dragDist = 0;
+    }
+
+    private void HandleTouchMove(TouchEventArgs e)
+    {
+        if (!_dragging || e.Touches.Length != 1) return;
+        var t = e.Touches[0];
+        var dx = t.ClientX - _downCX;
+        var dy = t.ClientY - _downCY;
+        _dragDist = Math.Sqrt(dx * dx + dy * dy);
+        _panX = _pan0X + dx;
+        _panY = _pan0Y + dy;
+        ClampPan();
+    }
+
+    private void HandleTouchEnd(TouchEventArgs e) => _dragging = false;
+
+    // ── sell / select ─────────────────────────────────────────────────────
+
+    private void HandleBuildingClick(PlacedBuilding b)
+    {
+        if (SellMode)
+        {
+            GameService.SellBuilding(b.Id);
+            return;
+        }
+        if (SelectedBuildingId != null) return; // placement mode — ignore building clicks
+        _infoBuilding = _infoBuilding?.Id == b.Id ? null : b;
+    }
+
+    // ── minimap ────────────────────────────────────────────────────────────
+
+    private const double MmW  = 160.0;
+    private const double MmH  = 96.0;
+    private const double MmSX = MmW  / GameConfig.MapWidth;
+    private const double MmSY = MmH  / GameConfig.MapHeight;
+
+    private bool   _mmDragging;
+    private double _mmDragStartCX, _mmDragStartCY;
+    private double _mmDragStartMmX, _mmDragStartMmY;
+
+    private void HandleMinimapMouseDown(MouseEventArgs e)
+    {
+        _mmDragging     = true;
+        _mmDragStartCX  = e.ClientX;
+        _mmDragStartCY  = e.ClientY;
+        _mmDragStartMmX = e.OffsetX;
+        _mmDragStartMmY = e.OffsetY;
+        PanToMinimap(e.OffsetX, e.OffsetY);
+    }
+
+    private void PanToMinimap(double mmX, double mmY)
+    {
+        mmX = Math.Clamp(mmX, 0, MmW);
+        mmY = Math.Clamp(mmY, 0, MmH);
+        _panX = _vpW / 2 - (mmX / MmSX) * _zoom;
+        _panY = _vpH / 2 - (mmY / MmSY) * _zoom;
+        ClampPan();
+    }
+
+    private string MinimapViewportStyle()
+    {
+        var l = Math.Clamp(-_panX / _zoom * MmSX, 0, MmW);
+        var t = Math.Clamp(-_panY / _zoom * MmSY, 0, MmH);
+        var w = Math.Clamp(_vpW   / _zoom * MmSX, 1, MmW - l);
+        var h = Math.Clamp(_vpH   / _zoom * MmSY, 1, MmH - t);
+        return $"left:{F(l)}px;top:{F(t)}px;width:{F(w)}px;height:{F(h)}px;";
+    }
+
+    private void HandleMinimapClick(MouseEventArgs e)
+    {
+        PanToMinimap(e.OffsetX, e.OffsetY);
+    }
+
+    // ── worker SVG ────────────────────────────────────────────────────────
+
+    private const string WorkerSvgStr =
+        @"<svg width=""24"" height=""32"" viewBox=""0 0 24 32"" xmlns=""http://www.w3.org/2000/svg"">" +
+        @"<ellipse cx=""12"" cy=""31"" rx=""5"" ry=""2"" fill=""rgba(0,0,0,0.22)""/>" +
+        @"<circle cx=""12"" cy=""6"" r=""5"" fill=""#f4c080""/>" +
+        @"<ellipse cx=""12"" cy=""3"" rx=""5"" ry=""3"" fill=""#5a3010""/>" +
+        @"<rect x=""8"" y=""11"" width=""8"" height=""9"" rx=""2"" fill=""#3560b0""/>" +
+        @"<g><animateTransform attributeName=""transform"" type=""rotate"" values=""-28 10 20;28 10 20;-28 10 20"" dur=""0.48s"" repeatCount=""indefinite""/>" +
+        @"<line x1=""10"" y1=""20"" x2=""8"" y2=""29"" stroke=""#1e3a80"" stroke-width=""3"" stroke-linecap=""round""/></g>" +
+        @"<g><animateTransform attributeName=""transform"" type=""rotate"" values=""28 14 20;-28 14 20;28 14 20"" dur=""0.48s"" repeatCount=""indefinite""/>" +
+        @"<line x1=""14"" y1=""20"" x2=""16"" y2=""29"" stroke=""#1e3a80"" stroke-width=""3"" stroke-linecap=""round""/></g>" +
+        @"<line x1=""8"" y1=""13"" x2=""3"" y2=""20"" stroke=""#3560b0"" stroke-width=""2"" stroke-linecap=""round""/>" +
+        @"<line x1=""16"" y1=""13"" x2=""21"" y2=""20"" stroke=""#3560b0"" stroke-width=""2"" stroke-linecap=""round""/>" +
+        @"</svg>";
+
+    // ── helpers ────────────────────────────────────────────────────────────
+
+    private void ClampPan()
+    {
+        var worldW = GameConfig.MapWidth  * _zoom;
+        var worldH = GameConfig.MapHeight * _zoom;
+        // if world is larger than viewport, keep edges inside; otherwise centre
+        _panX = worldW > _vpW
+            ? Math.Clamp(_panX, _vpW - worldW, 0)
+            : (_vpW - worldW) / 2;
+        _panY = worldH > _vpH
+            ? Math.Clamp(_panY, _vpH - worldH, 0)
+            : (_vpH - worldH) / 2;
+    }
+
+    private (double x, double y) ToWorld(double vx, double vy) =>
+        ((vx - _panX) / _zoom, (vy - _panY) / _zoom);
+
+    private static string F(double v) => v.ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Z(double v) => v.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+    private static string Fmt(double v) => v switch
+    {
+        >= 1_000_000 => $"{v / 1_000_000:F1}M",
+        >= 1_000     => $"{v / 1_000:F1}K",
+        _            => $"{v:F0}"
+    };
+
+    // ── terrain ────────────────────────────────────────────────────────────
+
+    private static (double X, double Y, int Kind)[] MakeDecorations()
+    {
+        var rng = new Random(42);
+        return Enumerable.Range(0, 130)
+            .Select(_ => (rng.NextDouble() * 3880 + 60, rng.NextDouble() * 2280 + 60, rng.Next(3)))
+            .ToArray();
+    }
+
+    private static string DecoSvg(int kind) => kind switch
+    {
+        0 => """<svg width="28" height="32" viewBox="0 0 28 32"><rect x="11" y="20" width="6" height="11" fill="#4a2810" rx="1"/><circle cx="14" cy="14" r="11" fill="#1e4a14"/><circle cx="14" cy="9" r="8" fill="#286020"/></svg>""",
+        1 => """<svg width="26" height="20" viewBox="0 0 26 20"><ellipse cx="13" cy="14" rx="12" ry="6" fill="#3a3830"/><ellipse cx="13" cy="12" rx="11" ry="5.5" fill="#5e5c54"/><ellipse cx="10" cy="10" rx="5" ry="3" fill="#787672" opacity="0.6"/></svg>""",
+        _ => """<svg width="24" height="18" viewBox="0 0 24 18"><circle cx="12" cy="13" r="9" fill="#14300e"/><circle cx="7" cy="12" r="6" fill="#183814"/><circle cx="17" cy="12" r="6" fill="#183814"/><circle cx="12" cy="9" r="5" fill="#1e4018"/></svg>"""
+    };
+
+    public void Dispose() =>
+        GameService.OnStateChanged -= Refresh;
+}

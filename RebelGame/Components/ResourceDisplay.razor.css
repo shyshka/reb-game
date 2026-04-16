@@ -1,0 +1,36 @@
+.resource-bar {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    flex: 1;
+}
+
+.resource {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.resource-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.resource-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.resource-value {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f0a500;
+    line-height: 1.1;
+}
+
+.resource-rate {
+    font-size: 0.7rem;
+    color: #4ade80;
+    line-height: 1.1;
+}

@@ -1,0 +1,370 @@
+.map-viewport {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    background: #080e05;
+    border-radius: 10px;
+    border: 2px solid #1a3010;
+    user-select: none;
+}
+
+.map-viewport:active {
+    cursor: grabbing;
+}
+
+.map-viewport--placement {
+    cursor: crosshair !important;
+}
+
+.map-viewport--sell {
+    cursor: pointer;
+}
+
+/* ── world ── */
+.map-world {
+    position: absolute;
+    width: 4000px;
+    height: 2400px;
+    transform-origin: 0 0;
+
+    /* layered terrain background */
+    background-color: #1a2b12;
+    background-image:
+        radial-gradient(ellipse 60% 40% at 22% 18%, rgba(38,76,22,0.55) 0%, transparent 100%),
+        radial-gradient(ellipse 50% 50% at 75% 65%, rgba(30,65,18,0.50) 0%, transparent 100%),
+        radial-gradient(ellipse 45% 35% at 48% 88%, rgba(50,42,14,0.35) 0%, transparent 100%),
+        radial-gradient(ellipse 55% 40% at 82% 12%, rgba(24,58,14,0.45) 0%, transparent 100%),
+        radial-gradient(ellipse 40% 45% at 10% 70%, rgba(20,48,12,0.40) 0%, transparent 100%),
+        linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px);
+    background-size:
+        100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%,
+        100px 100px, 100px 100px;
+}
+
+/* map border glow */
+.map-world::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 6px solid rgba(0,0,0,0.6);
+    pointer-events: none;
+}
+
+/* ── decorations ── */
+.terrain-deco {
+    position: absolute;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* ── placed buildings ── */
+.world-building {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 2px solid rgba(50,110,60,0.65);
+    background: rgba(0,0,0,0.42);
+    transition: transform 0.1s, border-color 0.15s, box-shadow 0.15s;
+    cursor: default;
+}
+
+.world-building:hover {
+    transform: scale(1.06);
+    border-color: rgba(80,180,100,0.85);
+    box-shadow: 0 0 10px rgba(60,160,80,0.3);
+    z-index: 1;
+}
+
+.world-building--ghost {
+    opacity: 0.58;
+    filter: saturate(0.35) brightness(1.4);
+    border: 2px dashed rgba(74,222,128,0.8);
+    background: rgba(74,222,128,0.06);
+    animation: ghost-pulse 1.1s ease-in-out infinite;
+}
+
+.world-building--sell {
+    cursor: pointer !important;
+    border-color: rgba(230,60,60,0.75) !important;
+    animation: sell-pulse 1s ease-in-out infinite;
+}
+
+.world-building--sell:hover {
+    border-color: rgba(255,100,100,0.95) !important;
+    box-shadow: 0 0 14px rgba(220,50,50,0.45);
+}
+
+.bld-label {
+    font-size: 0.48rem;
+    color: #a0c0a0;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 76px;
+    padding: 1px 2px 0;
+    line-height: 1.2;
+}
+
+.sell-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: rgba(180,28,28,0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #86efac;
+    text-shadow: 0 0 4px rgba(0,0,0,0.9);
+    pointer-events: none;
+}
+
+/* ── keyframes ── */
+@keyframes ghost-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+    50%       { box-shadow: 0 0 8px 3px rgba(74,222,128,0.3); }
+}
+
+@keyframes sell-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(220,50,50,0); }
+    50%       { box-shadow: 0 0 8px 3px rgba(220,50,50,0.4); }
+}
+
+@keyframes worker-walk {
+    0%,100% { transform: translateY(0px); }
+    25%      { transform: translateY(-2px) rotate(-3deg); }
+    75%      { transform: translateY(-2px) rotate(3deg); }
+}
+
+/* ── workers ── */
+.worker-wrap {
+    position: absolute;
+    width: 24px;
+    height: 32px;
+    pointer-events: none;
+    transition: left 0.1s linear, top 0.1s linear;
+    z-index: 2;
+}
+
+.worker-unit {
+    width: 100%;
+    height: 100%;
+    animation: worker-walk 0.48s ease-in-out infinite;
+    transform-origin: center bottom;
+}
+
+/* ── building selection highlight ── */
+.world-building--selected {
+    border-color: rgba(255,200,50,0.9) !important;
+    box-shadow: 0 0 12px rgba(255,200,50,0.4);
+}
+
+/* ── building info panel ── */
+.building-info-panel {
+    position: fixed;
+    transform: translateX(-50%) translateY(-100%);
+    background: rgba(6,14,4,0.95);
+    border: 1px solid rgba(60,130,50,0.65);
+    border-radius: 10px;
+    padding: 8px 12px 10px;
+    min-width: 160px;
+    max-width: 200px;
+    z-index: 9999;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+}
+
+.building-info-panel::after {
+    content: '';
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid rgba(60,130,50,0.65);
+}
+
+.info-close {
+    position: absolute;
+    top: 4px; right: 6px;
+    background: none;
+    border: none;
+    color: #607060;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+}
+
+.info-close:hover { color: #c06050; }
+
+.info-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #c8e8a0;
+    margin-bottom: 3px;
+    padding-right: 14px;
+}
+
+.info-desc {
+    font-size: 0.62rem;
+    color: #708060;
+    margin-bottom: 6px;
+    line-height: 1.4;
+}
+
+.info-stat {
+    font-size: 0.68rem;
+    color: #a0c890;
+    margin-bottom: 5px;
+}
+
+.btn-hire {
+    width: 100%;
+    padding: 5px 0;
+    background: rgba(30,70,20,0.75);
+    border: 1px solid rgba(60,140,50,0.6);
+    border-radius: 6px;
+    color: #a0e080;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-hire:hover:not(:disabled) {
+    background: rgba(40,100,28,0.9);
+    border-color: rgba(80,180,60,0.85);
+    color: #c8f0a0;
+}
+
+.btn-hire--locked,
+.btn-hire:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ── corner controls (minimap + zoom) ── */
+.corner-controls {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 6px;
+    z-index: 10;
+}
+
+/* ── minimap ── */
+.minimap {
+    position: relative;
+    width: 160px;
+    height: 96px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: crosshair;
+    border: 1px solid rgba(50,100,40,0.6);
+
+    /* same terrain colours as the world */
+    background-color: #1a2b12;
+    background-image:
+        radial-gradient(ellipse 60% 40% at 22% 18%, rgba(38,76,22,0.55) 0%, transparent 100%),
+        radial-gradient(ellipse 50% 50% at 75% 65%, rgba(30,65,18,0.50) 0%, transparent 100%),
+        radial-gradient(ellipse 45% 35% at 48% 88%, rgba(50,42,14,0.35) 0%, transparent 100%),
+        radial-gradient(ellipse 55% 40% at 82% 12%, rgba(24,58,14,0.45) 0%, transparent 100%);
+}
+
+.mm-dot {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    box-shadow: 0 0 3px rgba(0,0,0,0.6);
+}
+
+.mm-dot--worker {
+    width: 3px;
+    height: 3px;
+    background: #e0f0a0;
+    opacity: 0.85;
+}
+
+.mm-viewport {
+    position: absolute;
+    border: 1.5px solid rgba(255,220,80,0.85);
+    border-radius: 2px;
+    background: rgba(255,220,80,0.08);
+    pointer-events: none;
+}
+
+/* ── zoom control ── */
+.zoom-control {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: rgba(8, 16, 4, 0.82);
+    border: 1px solid rgba(50, 100, 40, 0.55);
+    border-radius: 10px;
+    padding: 6px 5px;
+    backdrop-filter: blur(4px);
+}
+
+.zoom-btn {
+    width: 26px;
+    height: 26px;
+    background: rgba(30, 60, 20, 0.7);
+    border: 1px solid rgba(60, 120, 50, 0.5);
+    border-radius: 6px;
+    color: #a0d090;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+    padding: 0;
+}
+
+.zoom-btn:hover {
+    background: rgba(40, 90, 28, 0.9);
+    border-color: rgba(80, 160, 60, 0.8);
+    color: #c8f0a0;
+}
+
+.zoom-slider {
+    writing-mode: vertical-lr;
+    direction: rtl;
+    appearance: slider-vertical;
+    -webkit-appearance: slider-vertical;
+    width: 6px;
+    height: 80px;
+    cursor: pointer;
+    accent-color: #4ade80;
+    opacity: 0.85;
+}
+
+.zoom-label {
+    font-size: 0.58rem;
+    color: #6a9060;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    min-width: 28px;
+}

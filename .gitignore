@@ -1,0 +1,13 @@
+## .NET / Blazor
+bin/
+obj/
+.vs/
+*.user
+
+## Publish output
+release/
+publish/
+
+## OS
+.DS_Store
+Thumbs.db

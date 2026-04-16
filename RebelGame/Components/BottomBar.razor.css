@@ -1,0 +1,139 @@
+.bottom-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(180deg, #0d1420 0%, #0a0f18 100%);
+    border: 2px solid #1e3050;
+    border-radius: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.bar-buildings {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+
+.building-btn {
+    width: 72px;
+    flex-shrink: 0;
+    background: #111c2e;
+    border: 2px solid #1e3050;
+    border-radius: 8px;
+    cursor: pointer;
+    padding: 4px 3px 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.building-btn:hover:not(:disabled) {
+    border-color: #3a6090;
+    transform: translateY(-2px);
+}
+
+.building-btn--selected {
+    border-color: #f0a500 !important;
+    box-shadow: 0 0 12px rgba(240, 165, 0, 0.45);
+    background: #1e2c10;
+}
+
+.building-btn--locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.btn-visual {
+    width: 52px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-name {
+    font-size: 0.6rem;
+    color: #a0b4c8;
+    text-align: center;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.btn-cost {
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.cost--ok { color: #f0a500; }
+.cost--no { color: #505878; }
+
+.bar-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+}
+
+.btn-sell {
+    background: #1e1420;
+    border: 2px solid #7a3a50;
+    color: #e08090;
+    border-radius: 8px;
+    padding: 0.3rem 0.9rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.btn-sell:hover {
+    background: #2e1828;
+    border-color: #c05070;
+}
+
+.btn-sell--active {
+    background: #3a1020;
+    border-color: #e05555 !important;
+    color: #f87878;
+    box-shadow: 0 0 10px rgba(220, 50, 50, 0.4);
+}
+
+.sell-hint {
+    color: #f87878 !important;
+}
+
+.placement-hint {
+    font-size: 0.75rem;
+    color: #4ade80;
+    animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+.btn-cancel {
+    background: #3a1520;
+    border: 1px solid #7a2535;
+    color: #f08090;
+    border-radius: 6px;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-cancel:hover {
+    background: #501a28;
+}

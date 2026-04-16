@@ -1,0 +1,74 @@
+@inject GameService GameService
+@implements IDisposable
+
+<div class="bottom-bar">
+    <div class="bar-buildings">
+        @foreach (var def in BuildingCatalog.All)
+        {
+            var cost = GameService.GetCurrentCost(def.Id);
+            var canAfford = GameService.CanAfford(def.Id);
+            var isSelected = SelectedBuildingId == def.Id;
+
+            <button class="building-btn @(isSelected ? "building-btn--selected" : "") @(canAfford ? "" : "building-btn--locked")"
+                    disabled="@(!canAfford || SellMode)"
+                    title="@def.Name — 💰 @FormatCost(cost)"
+                    @onclick="() => HandleSelect(def.Id)">
+                <div class="btn-visual">
+                    <BuildingVisual BuildingId="@def.Id" />
+                </div>
+                <span class="btn-name">@def.Name</span>
+                <span class="btn-cost @(canAfford ? "cost--ok" : "cost--no")">💰 @FormatCost(cost)</span>
+            </button>
+        }
+    </div>
+
+    <div class="bar-actions">
+        <button class="btn-sell @(SellMode ? "btn-sell--active" : "")"
+                title="@(SellMode ? "Exit sell mode" : "Sell a building (50% refund)")"
+                @onclick="HandleSellToggle">
+            🪙 Sell
+        </button>
+
+        @if (SellMode)
+        {
+            <span class="placement-hint sell-hint">🖱 Click a building to sell it</span>
+        }
+        else if (SelectedBuildingId != null)
+        {
+            <span class="placement-hint">📍 Click a slot to place</span>
+            <button class="btn-cancel" @onclick="HandleCancel">✕ Cancel</button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? SelectedBuildingId { get; set; }
+    [Parameter] public bool SellMode { get; set; }
+    [Parameter] public EventCallback<string?> OnBuildingSelect { get; set; }
+    [Parameter] public EventCallback OnSellModeToggle { get; set; }
+
+    protected override void OnInitialized() =>
+        GameService.OnStateChanged += HandleStateChanged;
+
+    private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void HandleSelect(string buildingId)
+    {
+        var next = SelectedBuildingId == buildingId ? null : buildingId;
+        OnBuildingSelect.InvokeAsync(next);
+    }
+
+    private void HandleCancel() => OnBuildingSelect.InvokeAsync(null);
+    private void HandleSellToggle() => OnSellModeToggle.InvokeAsync();
+
+    public void Dispose() =>
+        GameService.OnStateChanged -= HandleStateChanged;
+
+    private static string FormatCost(double cost) => cost switch
+    {
+        >= 1_000_000_000 => $"{cost / 1_000_000_000:F1}B",
+        >= 1_000_000     => $"{cost / 1_000_000:F1}M",
+        >= 1_000         => $"{cost / 1_000:F1}K",
+        _                => $"{cost:F0}"
+    };
+}
