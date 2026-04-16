@@ -1,3 +1,16 @@
+.badge-disabled {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #f44336;
+    background: rgba(244,67,54,0.12);
+    border: 1px solid rgba(244,67,54,0.35);
+    border-radius: 4px;
+    padding: 1px 5px;
+    vertical-align: middle;
+}
+
 .map-viewport {
     flex: 1;
     min-height: 0;
@@ -146,13 +159,36 @@
     75%      { transform: translateY(-2px) rotate(3deg); }
 }
 
+@keyframes worker-repair {
+    0%,100% { transform: translateX(0px) rotate(0deg); }
+    25%     { transform: translateX(1px) rotate(3deg); }
+    75%     { transform: translateX(-1px) rotate(-3deg); }
+}
+
 /* ── workers ── */
 .worker-wrap {
     position: absolute;
     width: 24px;
-    height: 32px;
+    height: 40px;
     pointer-events: none;
     transition: left 0.1s linear, top 0.1s linear;
+}
+
+.worker-health-bar {
+    width: 24px;
+    height: 3px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 1px;
+}
+
+.worker-health-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s linear, background 0.3s;
+}
+
     z-index: 2;
 }
 
@@ -163,10 +199,140 @@
     transform-origin: center bottom;
 }
 
+.worker-unit--working {
+    animation: worker-repair 0.5s ease-in-out infinite;
+    transform-origin: center bottom;
+}
+
+.worker-unit--resting {
+    animation: worker-sleep 2.5s ease-in-out infinite;
+    transform-origin: center center;
+}
+
+@keyframes worker-sleep {
+    0%,100% { transform: translateY(0px); }
+    50%     { transform: translateY(-1px); }
+}
+
+.btn-rest {
+    background: rgba(10,40,80,0.75) !important;
+    border-color: rgba(80,140,220,0.6) !important;
+    color: #a0d8ff !important;
+}
+
+.btn-rest:hover:not(:disabled) {
+    background: rgba(20,60,120,0.9) !important;
+    color: #d0eeff !important;
+}
+
+.info-divider {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    margin: 4px 0;
+}
+
+/* ── building health bar ── */
+.bld-health-bar {
+    position: absolute;
+    bottom: -6px;
+    left: 4px;
+    right: 4px;
+    height: 4px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.bld-health-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s linear, background 0.4s;
+}
+
 /* ── building selection highlight ── */
 .world-building--selected {
     border-color: rgba(255,200,50,0.9) !important;
     box-shadow: 0 0 12px rgba(255,200,50,0.4);
+}
+
+/* ── construction ── */
+.world-building--constructing {
+    border-color: rgba(255,180,30,0.7) !important;
+    filter: saturate(0.4) brightness(0.75);
+}
+
+/* ── ruined (health = 0) ── */
+.world-building--ruined {
+    border-color: rgba(255,50,50,0.9) !important;
+    filter: saturate(0) brightness(0.55);
+    animation: ruined-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes ruined-pulse {
+    from { box-shadow: 0 0 6px rgba(255,60,60,0.5); }
+    to   { box-shadow: 0 0 18px rgba(255,60,60,0.9); }
+}
+
+.ruined-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    pointer-events: none;
+    animation: alarm-flash 0.6s step-start infinite;
+}
+
+@keyframes alarm-flash {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+
+.construction-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    pointer-events: none;
+}
+
+.construction-icon {
+    font-size: 1.2rem;
+    animation: hammer-swing 0.6s ease-in-out infinite alternate;
+    transform-origin: bottom right;
+    display: inline-block;
+}
+
+.construction-bar {
+    width: 62px;
+    height: 6px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.construction-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f0a020, #ffe060);
+    border-radius: 3px;
+    transition: width 0.2s linear;
+}
+
+.construction-pct {
+    font-size: 0.55rem;
+    color: #ffe090;
+    font-weight: 700;
+}
+
+@keyframes hammer-swing {
+    from { transform: rotate(-25deg); }
+    to   { transform: rotate(15deg);  }
 }
 
 /* ── building info panel ── */
@@ -254,6 +420,31 @@
 .btn-hire:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.worker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: #b0cca0;
+    padding: 2px 0;
+    gap: 6px;
+}
+
+.btn-small {
+    padding: 2px 6px;
+    font-size: 0.68rem;
+    background: rgba(60,30,10,0.7);
+    border: 1px solid rgba(140,80,30,0.6);
+    border-radius: 4px;
+    color: #e0b888;
+    cursor: pointer;
+}
+
+.btn-small:hover {
+    background: rgba(100,50,10,0.85);
+    color: #ffd090;
 }
 
 /* ── corner controls (minimap + zoom) ── */

@@ -9,5 +9,8 @@ public class BuildingDefinition
     public double BaseCost { get; set; }
     public double MoneyPerSecond { get; set; }
     public double EnergyPerSecond { get; set; }
-    public double CostMultiplier { get; set; } = 1.15;
+    public double CostMultiplier  { get; set; } = 1.15;
+    public double BuildTimeSecs   { get; set; } = 10;
+    public int    RequiredWorkers { get; set; } = 1;
+    public int    WorkerCapacity  { get; set; } = 0;  // max workers this building can house (0 = none)
 }

@@ -6,7 +6,14 @@
         <span class="resource-icon">💰</span>
         <div class="resource-details">
             <span class="resource-value">@Format(GameService.State.Money)</span>
-            <span class="resource-rate">+@FormatRate(GameService.GetMoneyRate())/s</span>
+            @{ var moneyRate = GameService.GetMoneyRate(); }
+            <span class="resource-rate" style="color:@(moneyRate < 0 ? "#f44336" : "#8bc34a")">
+                @(moneyRate >= 0 ? "+" : "")@FormatRate(moneyRate)/s
+            </span>
+            @if (GameService.GetSalaryRate() > 0)
+            {
+                <span class="resource-rate" style="color:#ff9800;font-size:0.68rem;">👷-@FormatRate(GameService.GetSalaryRate())/s salary</span>
+            }
         </div>
     </div>
     <div class="resource">
@@ -20,7 +27,7 @@
         <span class="resource-icon">👷</span>
         <div class="resource-details">
             <span class="resource-value">@GameService.State.Workers.Count</span>
-            <span class="resource-rate">workers</span>
+            <span class="resource-rate">@GameService.GetFreeWorkers().Count() free</span>
         </div>
     </div>
 </div>

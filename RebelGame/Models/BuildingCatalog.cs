@@ -13,7 +13,9 @@ public static class BuildingCatalog
             BaseCost = 10,
             MoneyPerSecond = 0.1,
             EnergyPerSecond = 0.05,
-            CostMultiplier = 1.15
+            CostMultiplier = 1.15,
+            BuildTimeSecs = 10,
+            RequiredWorkers = 1
         },
         new BuildingDefinition
         {
@@ -24,7 +26,9 @@ public static class BuildingCatalog
             BaseCost = 100,
             MoneyPerSecond = 0.8,
             EnergyPerSecond = 0.2,
-            CostMultiplier = 1.15
+            CostMultiplier = 1.15,
+            BuildTimeSecs = 25,
+            RequiredWorkers = 2
         },
         new BuildingDefinition
         {
@@ -35,7 +39,9 @@ public static class BuildingCatalog
             BaseCost = 1_000,
             MoneyPerSecond = 5.0,
             EnergyPerSecond = 2.0,
-            CostMultiplier = 1.15
+            CostMultiplier = 1.15,
+            BuildTimeSecs = 60,
+            RequiredWorkers = 3
         },
         new BuildingDefinition
         {
@@ -46,7 +52,24 @@ public static class BuildingCatalog
             BaseCost = 300,
             MoneyPerSecond = 0,
             EnergyPerSecond = 0,
-            CostMultiplier = 1.20
+            CostMultiplier = 1.20,
+            BuildTimeSecs = 30,
+            RequiredWorkers = 1,
+            WorkerCapacity = 5
+        },
+        new BuildingDefinition
+        {
+            Id = "rest_house",
+            Name = "Rest House",
+            Description = "A place for workers to rest and fully recover their health.",
+            Icon = "🛖",
+            BaseCost = 200,
+            MoneyPerSecond = 0,
+            EnergyPerSecond = 0,
+            CostMultiplier = 1.20,
+            BuildTimeSecs = 20,
+            RequiredWorkers = 0,
+            WorkerCapacity = 2
         }
     };
 

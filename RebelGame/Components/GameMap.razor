@@ -30,10 +30,23 @@
         <!-- Workers -->
         @foreach (var w in GameService.State.Workers)
         {
-            var flip = w.FacingLeft ? "scaleX(-1)" : "scaleX(1)";
-            <div class="worker-wrap" style="left:@F(w.X - 12)px;top:@F(w.Y - 20)px;">
-                <div class="worker-unit" style="transform:@flip">
-                    @((MarkupString)WorkerSvgStr)
+            var isResting  = GameService.IsWorkerResting(w);
+            var isAssigned = w.AssignedBuildingId.HasValue && !isResting;
+            // don't show working animation if the assigned building is destroyed
+            var assignedBld = isAssigned ? GameService.State.Map.FirstOrDefault(b => b.Id == w.AssignedBuildingId) : null;
+            var bldDestroyed = assignedBld != null && assignedBld.Health <= 0;
+            var effectivelyWorking = isAssigned && !bldDestroyed;
+            var flip       = w.FacingLeft ? "scaleX(-1)" : "scaleX(1)";
+            var hpPct      = (int)w.Health;
+            var hpColor    = w.Health > 60 ? "#4caf50" : w.Health > 30 ? "#ff9800" : "#f44336";
+            var svgStr     = isResting ? WorkerRestingStr : effectivelyWorking ? WorkerWorkingStr : WorkerSvgStr;
+            var unitClass  = isResting ? "worker-unit worker-unit--resting" : effectivelyWorking ? "worker-unit worker-unit--working" : "worker-unit";
+            <div class="worker-wrap" style="left:@F(w.X - (isResting ? 18 : 12))px;top:@F(w.Y - (isResting ? 10 : 20))px;">
+                <div class="worker-health-bar" style="width:@(isResting ? "36" : "24")px;">
+                    <div class="worker-health-fill" style="width:@(hpPct)%;background:@hpColor;"></div>
+                </div>
+                <div class="@unitClass" style="transform:@(isResting ? "none" : flip)">
+                    @((MarkupString)svgStr)
                 </div>
             </div>
         }
@@ -41,22 +54,45 @@
         <!-- Placed buildings -->
         @foreach (var b in GameService.State.Map)
         {
-            var def = BuildingCatalog.GetById(b.BuildingId);
+            var def  = BuildingCatalog.GetById(b.BuildingId);
             var half = GameConfig.BuildingSize / 2;
-            var sellPrice = SellMode ? GameService.GetSellPrice(b.BuildingId) : 0;
+            var sellPrice  = SellMode ? GameService.GetSellPrice(b.BuildingId) : 0;
             var isSelected = _infoBuilding?.Id == b.Id;
-            <div class="world-building @(SellMode ? "world-building--sell" : "") @(isSelected ? "world-building--selected" : "")"
+            var pct = (int)(b.ConstructionProgress * 100);
+            <div class="world-building @(SellMode ? "world-building--sell" : "") @(isSelected ? "world-building--selected" : "") @(b.IsConstructing ? "world-building--constructing" : "") @(!b.IsConstructing && b.Health <= 0 ? "world-building--ruined" : "")"
                  style="left:@F(b.X - half)px;top:@F(b.Y - half)px;"
                  @onclick:stopPropagation="true"
                  @onclick="() => HandleBuildingClick(b)">
                 <BuildingVisual BuildingId="@b.BuildingId" />
-                @if (SellMode)
+                @if (b.IsConstructing)
                 {
-                    <div class="sell-overlay">💰 @Fmt(sellPrice)</div>
+                    <div class="construction-overlay">
+                        <span class="construction-icon">🔨</span>
+                        <div class="construction-bar">
+                            <div class="construction-fill" style="width:@(pct)%"></div>
+                        </div>
+                        <span class="construction-pct">@pct%</span>
+                    </div>
                 }
                 else
                 {
-                    <span class="bld-label">@def?.Name</span>
+                    var hpPct   = (int)b.Health;
+                    var hpColor = b.Health > 60 ? "#4caf50" : b.Health > 30 ? "#ff9800" : "#f44336";
+                    <div class="bld-health-bar">
+                        <div class="bld-health-fill" style="width:@(hpPct)%;background:@hpColor;"></div>
+                    </div>
+                    @if (b.Health <= 0)
+                    {
+                        <div class="ruined-overlay">⚠️</div>
+                    }
+                    else if (SellMode)
+                    {
+                        <div class="sell-overlay">💰 @Fmt(sellPrice)</div>
+                    }
+                    else
+                    {
+                        <span class="bld-label">@def?.Name</span>
+                    }
                 }
             </div>
         }
@@ -79,21 +115,115 @@
         var def = BuildingCatalog.GetById(ib.BuildingId);
         var px  = (int)(_vpL + ib.X * _zoom + _panX);
         var py  = (int)(_vpT + ib.Y * _zoom + _panY - GameConfig.BuildingSize * _zoom / 2) - 6;
-        var workerCount = GameService.State.Workers.Count(w => w.HomeId == ib.Id);
-        var canHire = GameService.State.Money >= GameConfig.WorkerCost;
+        var workerCount   = GameService.State.Workers.Count(w => w.HomeId == ib.Id);
+        var canHire       = GameService.State.Money >= GameConfig.WorkerCost;
+        var assignedList  = GameService.GetAssignedWorkers(ib.Id).ToList();
+        var returningList = GameService.GetReturningWorkers(ib.Id).ToList();
+        var freeWorkers   = GameService.GetFreeWorkers().ToList();
+        var requiredCount = def?.RequiredWorkers ?? 1;
         <div class="building-info-panel" style="left:@(px)px;top:@(py)px;"
              @onmousedown:stopPropagation @onclick:stopPropagation>
             <button class="info-close" @onclick="() => _infoBuilding = null">✕</button>
             <div class="info-name">@def?.Icon @def?.Name</div>
             <div class="info-desc">@def?.Description</div>
+            @if (!ib.IsConstructing)
+            {
+                var hpColor    = ib.Health > 60 ? "#4caf50" : ib.Health > 30 ? "#ff9800" : "#f44336";
+                var repairCost = GameService.GetRepairCost(ib.Id);
+                var canRepair  = ib.Health < 100 && GameService.State.Money >= repairCost;
+                <div class="info-stat">
+                    ❤️ Health: <span style="color:@hpColor;font-weight:700;">@((int)ib.Health)%</span>
+                    @if (ib.Health <= 0)
+                    {
+                        <span class="badge-disabled">⛔ DISABLED — no production</span>
+                    }
+                </div>
+                <!-- Workers section — only for buildings that need workers -->
+                @if (requiredCount > 0)
+                {
+                <div class="info-stat">
+                    👷 Workers: <strong>@assignedList.Count / @requiredCount</strong> required
+                </div>
+                <!-- Assigned workers -->
+                @foreach (var w in assignedList)
+                {
+                    var hasRestHouse = GameService.FindRestHousePublic(w) != null;
+                    <div class="worker-row">
+                        <span>👤 @((int)w.Health)❤️</span>
+                        <button class="btn-small btn-rest"
+                                disabled="@(!hasRestHouse)"
+                                title="@(!hasRestHouse ? "No rest house available" : "Send to rest, will return after")"
+                                @onclick="() => GameService.SendToRestFromBuilding(w.Id)">💤</button>
+                        <button class="btn-small" @onclick="() => GameService.UnassignWorker(w.Id)">✕</button>
+                    </div>
+                }
+                <!-- Workers resting, will return here -->
+                @if (returningList.Count > 0)
+                {
+                    <div class="info-stat" style="color:#a0d8ff;font-size:0.78rem;">
+                        💤 Returning after rest: @returningList.Count
+                    </div>
+                }
+                <!-- Assign a free worker -->
+                @if (freeWorkers.Count > 0 && assignedList.Count < requiredCount * 2)
+                {
+                    <button class="btn-hire" @onclick="() => GameService.AssignWorker(freeWorkers[0].Id, ib.Id)">
+                        ➕ Assign Worker (@freeWorkers.Count free)
+                    </button>
+                }
+                }
+                <!-- Money repair -->
+                @if (ib.Health < 100)
+                {
+                    <button class="btn-hire @(canRepair ? "" : "btn-hire--locked")"
+                            disabled="@(!canRepair)"
+                            @onclick="() => GameService.RepairBuilding(ib.Id)">
+                        🔧 Repair now &nbsp;💰 @Fmt(repairCost)
+                    </button>
+                }
+            }
             @if (ib.BuildingId == "hunter_lodge")
             {
-                <div class="info-stat">👷 Workers: @workerCount</div>
-                <button class="btn-hire @(canHire ? "" : "btn-hire--locked")"
-                        disabled="@(!canHire)"
+                var lodgeCap   = GameService.GetLodgeCapacity(ib.Id);
+                var lodgeTotal = GameService.GetLodgeWorkerCount(ib.Id);
+                var lodgeFull  = !GameService.CanLodgeHireMore(ib.Id);
+                <div class="info-divider"></div>
+                <div class="info-stat">
+                    🏠 Workers: <strong>@lodgeTotal / @lodgeCap</strong>
+                    @if (lodgeFull) { <span style="color:#f88;"> (full)</span> }
+                </div>
+                <button class="btn-hire @(canHire && !lodgeFull ? "" : "btn-hire--locked")"
+                        disabled="@(!canHire || lodgeFull)"
                         @onclick="() => GameService.CreateWorker(ib.Id)">
                     👤 Hire Worker &nbsp;💰 @((int)GameConfig.WorkerCost)
+                    @if (lodgeFull) { <span> (full)</span> }
                 </button>
+            }
+            @if (ib.BuildingId == "rest_house")
+            {
+                var restingList = GameService.GetRestingWorkers(ib.Id).ToList();
+                var freeForRest = GameService.GetFreeWorkers().ToList();
+                var cap         = GameService.GetRestHouseCapacity(ib.Id);
+                var occupancy   = GameService.GetRestHouseOccupancy(ib.Id);
+                var full        = !GameService.HasRestHouseSpace(ib.Id);
+                <div class="info-divider"></div>
+                <div class="info-stat">
+                    🛏️ Beds: <strong>@occupancy / @cap</strong>
+                    @if (full) { <span style="color:#f88;"> (full)</span> }
+                </div>
+                @foreach (var rw in restingList)
+                {
+                    <div class="worker-row">
+                        <span>💤 @((int)(GameConfig.WorkerRestDuration - rw.RestTimer))s</span>
+                        <button class="btn-small" @onclick="() => GameService.UnassignWorker(rw.Id)">⬆ Wake</button>
+                    </div>
+                }
+                @if (freeForRest.Count > 0 && !full)
+                {
+                    <button class="btn-hire btn-rest" @onclick="() => GameService.SendToRest(freeForRest[0].Id, ib.Id)">
+                        💤 Send to rest (@freeForRest.Count free)
+                    </button>
+                }
             }
         </div>
     }
@@ -112,6 +242,7 @@
                     "solar_station" => "#f0c030",
                     "wind_farm"     => "#60c0f0",
                     "hunter_lodge"  => "#c07830",
+                    "rest_house"    => "#80c080",
                     _               => "#e06030"
                 };
                 <div class="mm-dot" style="left:@F(b.X*MmSX)px;top:@F(b.Y*MmSY)px;background:@dotColor;"></div>
@@ -364,7 +495,7 @@
         PanToMinimap(e.OffsetX, e.OffsetY);
     }
 
-    // ── worker SVG ────────────────────────────────────────────────────────
+    // ── worker SVG — walking ───────────────────────────────────────────────
 
     private const string WorkerSvgStr =
         @"<svg width=""24"" height=""32"" viewBox=""0 0 24 32"" xmlns=""http://www.w3.org/2000/svg"">" +
@@ -380,7 +511,80 @@
         @"<line x1=""16"" y1=""13"" x2=""21"" y2=""20"" stroke=""#3560b0"" stroke-width=""2"" stroke-linecap=""round""/>" +
         @"</svg>";
 
-    // ── helpers ────────────────────────────────────────────────────────────
+    // ── worker SVG — working (hammering, legs still, arm swings down) ──────
+
+    private const string WorkerWorkingStr =
+        // shadow (wider — sitting)
+        @"<svg width=""28"" height=""28"" viewBox=""0 0 28 28"" xmlns=""http://www.w3.org/2000/svg"">" +
+        @"<ellipse cx=""14"" cy=""27"" rx=""9"" ry=""2"" fill=""rgba(0,0,0,0.22)""/>" +
+        // head
+        @"<circle cx=""10"" cy=""6"" r=""4.5"" fill=""#f4c080""/>" +
+        @"<ellipse cx=""10"" cy=""3"" rx=""4.5"" ry=""2.8"" fill=""#e05010""/>" +
+        // body — hunched forward
+        @"<rect x=""6"" y=""10"" width=""8"" height=""7"" rx=""2"" fill=""#b04020"" transform=""rotate(10 10 13)""/>" +
+        // legs folded/sitting on ground
+        @"<line x1=""7""  y1=""17"" x2=""2""  y2=""24"" stroke=""#7a2010"" stroke-width=""3"" stroke-linecap=""round""/>" +
+        @"<line x1=""12"" y1=""17"" x2=""17"" y2=""24"" stroke=""#7a2010"" stroke-width=""3"" stroke-linecap=""round""/>" +
+        @"<line x1=""2""  y1=""24"" x2=""8""  y2=""25"" stroke=""#7a2010"" stroke-width=""3"" stroke-linecap=""round""/>" +
+        @"<line x1=""17"" y1=""24"" x2=""22"" y2=""24"" stroke=""#7a2010"" stroke-width=""3"" stroke-linecap=""round""/>" +
+        // left arm — braced on ground
+        @"<line x1=""6"" y1=""13"" x2=""3"" y2=""19"" stroke=""#b04020"" stroke-width=""2"" stroke-linecap=""round""/>" +
+        // right arm + wrench — scrubs back and forth
+        @"<g>" +
+        @"<animateTransform attributeName=""transform"" type=""rotate"" values=""-20 14 12;20 14 12;-20 14 12"" dur=""0.5s"" repeatCount=""indefinite""/>" +
+        @"<line x1=""14"" y1=""12"" x2=""23"" y2=""14"" stroke=""#b04020"" stroke-width=""2"" stroke-linecap=""round""/>" +
+        // wrench head
+        @"<rect x=""22"" y=""11"" width=""5"" height=""3"" rx=""1"" fill=""#aaa""/>" +
+        @"<rect x=""23"" y=""14"" width=""3"" height=""2"" rx=""0.5"" fill=""#888""/>" +
+        @"</g>" +
+        // spark particles — appear near wrench
+        @"<circle cx=""24"" cy=""13"" r=""1"" fill=""#ffdd44"" opacity=""0"">" +
+        @"<animate attributeName=""opacity"" values=""0;1;0"" dur=""0.5s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""cx"" values=""24;26;25"" dur=""0.5s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""cy"" values=""13;11;12"" dur=""0.5s"" repeatCount=""indefinite""/>" +
+        @"</circle>" +
+        @"<circle cx=""25"" cy=""12"" r=""0.8"" fill=""#ff8800"" opacity=""0"">" +
+        @"<animate attributeName=""opacity"" values=""0;0.9;0"" dur=""0.5s"" begin=""0.25s"" repeatCount=""indefinite""/>" +
+        @"</circle>" +
+        @"</svg>";
+
+    // ── worker SVG — resting (sitting, sleeping Zzz) ─────────────────────
+
+    private const string WorkerRestingStr =
+        // wider viewbox — worker lying on their side
+        @"<svg width=""36"" height=""20"" viewBox=""0 0 36 20"" xmlns=""http://www.w3.org/2000/svg"">" +
+        // shadow (elongated underneath)
+        @"<ellipse cx=""18"" cy=""19"" rx=""14"" ry=""2"" fill=""rgba(0,0,0,0.22)""/>" +
+        // blanket / body lying horizontal
+        @"<rect x=""4"" y=""11"" width=""22"" height=""7"" rx=""3"" fill=""#3560b0""/>" +
+        // slight breathing rise on the blanket
+        @"<rect x=""8"" y=""10"" width=""12"" height=""4"" rx=""2"" fill=""#4070c0"">" +
+        @"<animate attributeName=""height"" values=""4;5.5;4"" dur=""2.5s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""y"" values=""10;9;10"" dur=""2.5s"" repeatCount=""indefinite""/>" +
+        @"</rect>" +
+        // head on pillow
+        @"<circle cx=""30"" cy=""13"" r=""5"" fill=""#f4c080""/>" +
+        // pillow
+        @"<ellipse cx=""30"" cy=""16"" rx=""6"" ry=""2.5"" fill=""#e8e0d0""/>" +
+        // closed eyes (two curved lines)
+        @"<path d=""M28,12 Q29.5,11 31,12"" stroke=""#7a4010"" stroke-width=""1.2"" fill=""none"" stroke-linecap=""round""/>" +
+        // small smile
+        @"<path d=""M28.5,14.5 Q30,15.5 31.5,14.5"" stroke=""#c08040"" stroke-width=""0.8"" fill=""none"" stroke-linecap=""round""/>" +
+        // feet poking out
+        @"<ellipse cx=""5"" cy=""14"" rx=""3"" ry=""2"" fill=""#f4c080""/>" +
+        // Zzz rising and fading
+        @"<text x=""22"" y=""9"" font-size=""5"" fill=""#a0d8ff"" font-weight=""bold"">" +
+        @"<animate attributeName=""opacity"" values=""0;1;0"" dur=""2.4s"" begin=""0s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""y"" values=""9;4;9"" dur=""2.4s"" begin=""0s"" repeatCount=""indefinite""/>z</text>" +
+        @"<text x=""27"" y=""6"" font-size=""4"" fill=""#c0e8ff"">" +
+        @"<animate attributeName=""opacity"" values=""0;0.9;0"" dur=""2.4s"" begin=""0.8s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""y"" values=""6;1;6"" dur=""2.4s"" begin=""0.8s"" repeatCount=""indefinite""/>z</text>" +
+        @"<text x=""31"" y=""4"" font-size=""3"" fill=""#d0f0ff"">" +
+        @"<animate attributeName=""opacity"" values=""0;0.7;0"" dur=""2.4s"" begin=""1.6s"" repeatCount=""indefinite""/>" +
+        @"<animate attributeName=""y"" values=""4;0;4"" dur=""2.4s"" begin=""1.6s"" repeatCount=""indefinite""/>z</text>" +
+        @"</svg>";
+
+
 
     private void ClampPan()
     {
