@@ -72,6 +72,13 @@ html, body {
             transition: stroke-dasharray 0.05s ease-in-out;
         }
 
+.air-raid-plane {
+    position: absolute;
+    z-index: 900;
+    pointer-events: none;
+    transition: left 0.1s linear;
+}
+
 .loading-progress-text {
     position: absolute;
     text-align: center;

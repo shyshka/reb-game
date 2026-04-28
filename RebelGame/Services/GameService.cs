@@ -60,6 +60,8 @@ public class GameService(StorageService storage) : IAsyncDisposable
         UpdateBuildingHealth(elapsed);
         ProcessRestHouseQueue();
         MoveWorkers(elapsed);
+        // ── Air Raid Logic ──
+        HandleAirRaid(now);
 
         if (now - _lastSave >= SaveInterval)
         {
@@ -69,6 +71,56 @@ public class GameService(StorageService storage) : IAsyncDisposable
         }
 
         OnStateChanged?.Invoke();
+    }
+
+    private void HandleAirRaid(DateTime now)
+    {
+        // Start new raid if time
+        if (State.PlanesRemaining > 0 && now >= State.NextRaidTime)
+        {
+            if ((now - State.LastPlaneLaunch).TotalSeconds >= 15 || State.LastPlaneLaunch == DateTime.MinValue)
+            {
+                // Pick random building
+                var targets = State.Map.Where(b => !b.IsConstructing && b.Health > 0).ToList();
+                if (targets.Count > 0)
+                {
+                    var target = targets[_rng.Next(targets.Count)];
+                    var plane = new AirRaidPlane
+                    {
+                        X = -100,
+                        Y = target.Y,
+                        TargetBuildingId = target.Id,
+                        LaunchTime = now
+                    };
+                    State.ActivePlanes.Add(plane);
+                    State.LastPlaneLaunch = now;
+                    State.PlanesRemaining--;
+                }
+            }
+        }
+        // Move planes and apply damage
+        foreach (var plane in State.ActivePlanes.ToList())
+        {
+            plane.X += 30; // move right (speed px/tick)
+            if (!plane.HasAttacked && plane.TargetBuildingId.HasValue)
+            {
+                var b = State.Map.FirstOrDefault(x => x.Id == plane.TargetBuildingId);
+                if (b != null && plane.X >= b.X)
+                {
+                    b.Health = Math.Max(0, b.Health - 20);
+                    plane.HasAttacked = true;
+                }
+            }
+        }
+        // Remove planes off screen
+        State.ActivePlanes.RemoveAll(p => p.X > GameConfig.MapWidth + 100);
+        // Reset raid if all planes used
+        if (State.PlanesRemaining == 0 && State.ActivePlanes.Count == 0)
+        {
+            State.PlanesRemaining = 5;
+            State.NextRaidTime = now.AddSeconds(20);
+            State.LastPlaneLaunch = DateTime.MinValue;
+        }
     }
 
     private void ProduceResources(double seconds)

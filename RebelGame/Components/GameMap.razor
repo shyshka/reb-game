@@ -19,6 +19,14 @@
     <div class="map-world"
          style="transform: translate(@F(_panX)px, @F(_panY)px) scale(@Z(_zoom)); transform-origin: 0 0;">
 
+        <!-- Air Raid Planes -->
+        @foreach (var plane in GameService.State.ActivePlanes)
+        {
+            <div class="air-raid-plane" style="left:@F(plane.X)px;top:@F(plane.Y-30)px;">
+                <span style="font-size:2rem;">✈️</span>
+            </div>
+        }
+
         <!-- Terrain decorations -->
         @foreach (var d in _decorations)
         {
@@ -106,6 +114,14 @@
                 <BuildingVisual BuildingId="@SelectedBuildingId" />
             </div>
         }
+    </div>
+
+    <!-- Air Raid Info (top-right) -->
+    <div style="position:fixed;top:16px;right:24px;z-index:1000;background:rgba(30,30,40,0.92);color:#fff;padding:12px 18px;border-radius:10px;min-width:180px;box-shadow:0 2px 8px #0006;font-size:1.1rem;">
+        <div style="font-weight:700;letter-spacing:1px;">✈️ Air Raid</div>
+        <div>Next attack: <span style="color:#ffb300;font-weight:700;">@((int)Math.Max(0, (GameService.State.NextRaidTime-DateTime.UtcNow).TotalSeconds))s</span></div>
+        <div>Planes left: <span style="color:#ffb300;font-weight:700;">@GameService.State.PlanesRemaining</span></div>
+        <div>Active planes: <span style="color:#ffb300;font-weight:700;">@GameService.State.ActivePlanes.Count</span></div>
     </div>
 
     <!-- Building info panel — fixed position so overflow:hidden doesn't clip it -->
